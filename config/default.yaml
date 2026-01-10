@@ -1,0 +1,51 @@
+# HOA Financial Processor Configuration
+
+# PDF Processing
+pdf:
+  max_pages_per_chunk: 30
+  dpi_for_ocr: 150
+
+# Claude CLI Settings
+claude:
+  max_retries: 3
+  retry_delay_seconds: 5
+  timeout_seconds: 120
+
+# Report Type Detection
+# Keywords used to identify report types
+report_detection:
+  balance_sheet:
+    - "Balance Sheet"
+    - "Assets"
+    - "Liabilities"
+    - "Owners' Equity"
+  disbursements:
+    - "Check Disbursement"
+    - "Check Number"
+    - "Bank:"
+  invoice:
+    - "Invoice ID"
+    - "Invoice Date"
+    - "Bill To"
+  investment_listing:
+    - "Investment Listing"
+    - "Bank Account"
+    - "Money Market"
+
+# Account Categories (for categorization)
+categories:
+  management:
+    keywords: ["management fee", "admin", "associa"]
+  maintenance:
+    keywords: ["repair", "maintenance", "landscaping", "pool", "gate"]
+  utilities:
+    keywords: ["water", "electric", "trash", "utility"]
+  insurance:
+    keywords: ["insurance", "policy"]
+  legal:
+    keywords: ["legal", "attorney", "collection", "lien"]
+
+# Output Settings
+output:
+  excel_date_format: "YYYY-MM-DD"
+  currency_format: "$#,##0.00"

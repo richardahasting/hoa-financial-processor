@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Data files (large, regeneratable, or contain financial data)
+data/input/*.pdf
+data/input/*-split/
+data/output/*.xlsx
+data/output/*.csv
+data/output/*.md
+data/checkpoints/*.json
+
+# Keep directory structure
+!data/input/.gitkeep
+!data/output/.gitkeep
+!data/checkpoints/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+.~lock.*
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local

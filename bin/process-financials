@@ -1,0 +1,148 @@
+#!/home/richard/projects/hoa-financial-processor/venv/bin/python
+"""
+HOA Financial Processor - CLI Entry Point
+
+Process HOA financial PDF packages into structured Excel files.
+
+Usage:
+    process-financials <pdf_file> [options]
+    process-financials --resume [options]
+    process-financials --status
+
+Examples:
+    process-financials ~/Downloads/Financial_Package.pdf
+    process-financials ~/Downloads/Financial_Package.pdf --max-pages 25
+    process-financials --resume
+"""
+
+import sys
+import os
+from pathlib import Path
+
+# Add src to path
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+import click
+
+from src.processor import FinancialProcessor, setup_logging
+from src.checkpoint import CheckpointManager
+from src.claude_client import TokenLimitError
+
+
+@click.command()
+@click.argument('pdf_file', required=False, type=click.Path(exists=True))
+@click.option('--resume', is_flag=True, help='Resume from last checkpoint')
+@click.option('--status', is_flag=True, help='Show checkpoint status')
+@click.option('--max-pages', default=30, help='Max pages per chunk (default: 30)')
+@click.option('--output-dir', type=click.Path(), help='Output directory for Excel files')
+@click.option('--verbose', '-v', is_flag=True, help='Verbose output')
+@click.option('--clear', is_flag=True, help='Clear checkpoint and start fresh')
+def main(pdf_file, resume, status, max_pages, output_dir, verbose, clear):
+    """Process HOA financial PDF packages into structured Excel files."""
+
+    setup_logging(verbose)
+
+    # Status check
+    if status:
+        show_status()
+        return
+
+    # Need either PDF file or resume flag
+    if not pdf_file and not resume:
+        click.echo("Error: Please provide a PDF file or use --resume")
+        click.echo("Run with --help for usage information")
+        sys.exit(1)
+
+    # Find PDF for resume
+    if resume and not pdf_file:
+        pdf_file = find_resumable_job()
+        if not pdf_file:
+            click.echo("No resumable job found. Please specify a PDF file.")
+            sys.exit(1)
+
+    try:
+        processor = FinancialProcessor(
+            pdf_path=pdf_file,
+            output_dir=Path(output_dir) if output_dir else None,
+            max_pages_per_chunk=max_pages
+        )
+
+        if clear:
+            processor.checkpoint.clear()
+            click.echo("Checkpoint cleared.")
+
+        processor.run(resume=resume)
+
+        click.echo("\n" + "=" * 50)
+        click.echo("Processing complete!")
+        click.echo(f"Output: {processor.output_dir}")
+        click.echo("=" * 50)
+
+    except TokenLimitError:
+        click.echo("\n" + "=" * 50)
+        click.echo("Token limit reached - progress saved!")
+        click.echo("Wait a few hours and run with --resume to continue.")
+        click.echo("=" * 50)
+        sys.exit(2)
+
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+
+def show_status():
+    """Show status of all checkpoints."""
+    checkpoint_dir = PROJECT_ROOT / "data" / "checkpoints"
+
+    if not checkpoint_dir.exists():
+        click.echo("No checkpoints found.")
+        return
+
+    checkpoint_files = list(checkpoint_dir.glob("*.json"))
+
+    if not checkpoint_files:
+        click.echo("No checkpoints found.")
+        return
+
+    click.echo("Checkpoint Status:")
+    click.echo("-" * 50)
+
+    for cp_file in checkpoint_files:
+        job_id = cp_file.stem
+        cp = CheckpointManager(checkpoint_dir, job_id)
+        click.echo(f"\n{cp.summary()}")
+
+
+def find_resumable_job() -> str:
+    """Find a job that can be resumed."""
+    checkpoint_dir = PROJECT_ROOT / "data" / "checkpoints"
+
+    if not checkpoint_dir.exists():
+        return None
+
+    for cp_file in checkpoint_dir.glob("*.json"):
+        job_id = cp_file.stem
+        cp = CheckpointManager(checkpoint_dir, job_id)
+        if cp.can_resume():
+            # Try to find the original PDF
+            possible_paths = [
+                Path.home() / "Downloads" / f"{job_id}.pdf",
+                PROJECT_ROOT / "data" / "input" / f"{job_id}.pdf",
+            ]
+            for path in possible_paths:
+                if path.exists():
+                    return str(path)
+
+    return None
+
+
+if __name__ == '__main__':
+    main()
